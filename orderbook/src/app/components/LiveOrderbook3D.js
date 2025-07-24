@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ControlPanel from './ControlPanel';
 import OrderbookPlot from './OrderbookPlot';
+import useSetRealVH from './useSetRealVH';
+
 
 import {
   EXCHANGES,
@@ -25,6 +27,7 @@ import { useDebouncedValue } from './hooks';
 const DEFAULT_MAX_FRAMES = 60 * 10;
 
 export default function LiveOrderbook3D() {
+  useSetRealVH();
   // Controls
   const [exchange, setExchange] = useState(EXCHANGES[0].id);
   const [coin, setCoin]         = useState(COINS[0]);

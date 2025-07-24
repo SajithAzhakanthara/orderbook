@@ -7,6 +7,29 @@ html, body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial, sans-serif;
 }
 
+:root {
+  --vh: 100vh;
+}
+
+@media (max-width: 768px) {
+  .plot-wrapper {
+    height: calc(var(--vh) * 100 - 220px); /* (viewport) - approx control panel */
+  }
+}
+
+.plot-wrapper {
+  width: 100%;
+  height: 600px; /* desktop fallback */
+}
+
+/* Optional: hide Plotly modebar on mobile to gain space */
+@media (max-width: 768px) {
+  .js-plotly-plot .plotly .modebar {
+    display: none !important;
+  }
+}
+
+
 .loader-overlay {
   position: absolute;
   inset: 0;

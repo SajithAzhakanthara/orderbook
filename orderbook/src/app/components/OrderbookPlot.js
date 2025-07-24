@@ -24,8 +24,20 @@ export default function OrderbookPlot({ plotData, mode, titles }) {
 
       const { traces, layout } = makePlotConfig(mode, titles, plotData, cameraRef.current);
 
-      await Plotly.newPlot(divRef.current, traces, layout, { responsive: true });
+      await Plotly.newPlot(
+        divRef.current,
+        traces,
+        layout,
+        {
+          responsive: true,
+          scrollZoom: true,        // pinch to zoom on mobile
+          doubleClick: 'reset',    // double tap to reset
+          displaylogo: false,
+          modeBarButtonsToRemove: ['toImage', 'toggleSpikelines'], // optional
+        }
+      );
 
+      // Persist camera
       divRef.current.on('plotly_relayout', (e) => {
         if (e['scene.camera']) cameraRef.current = e['scene.camera'];
         isInteractingRef.current = false;
@@ -53,7 +65,16 @@ export default function OrderbookPlot({ plotData, mode, titles }) {
     if (isInteractingRef.current) return;
 
     const { traces, layout } = makePlotConfig(mode, titles, plotData, cameraRef.current);
-    Plotly.react(el, traces, layout, { responsive: true });
+    Plotly.react(
+      el,
+      traces,
+      layout,
+      {
+        responsive: true,
+        scrollZoom: true,
+        displaylogo: false,
+      }
+    );
   });
 
   useEffect(() => {
@@ -61,7 +82,9 @@ export default function OrderbookPlot({ plotData, mode, titles }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plotData, mode, titles]);
 
-  return <div ref={divRef} style={{ width: '100%', height: 600 }} />;
+  return (
+    <div className="plot-wrapper" ref={divRef} />
+  );
 }
 
 function makePlotConfig(mode, titles, plotData, camera) {
@@ -71,17 +94,22 @@ function makePlotConfig(mode, titles, plotData, camera) {
       xaxis: { title: titles?.x || 'Price' },
       yaxis: { title: titles?.y || 'Quantity' },
       zaxis: { title: titles?.z || 'Time (s since start)' },
-      dragmode: 'orbit',
+      dragmode: 'orbit',  // touch drag rotates
       camera: camera || undefined,
+      aspectmode: 'cube', // keeps proportions reasonable on mobile
     },
     autosize: true,
     margin: { l: 0, r: 0, b: 0, t: 40 }
   };
 
-  let traces = [];
+  const traces = buildTraces(mode, plotData);
+  return { traces, layout };
+}
+
+function buildTraces(mode, plotData) {
   if (mode === 'pressure') {
     const { xs = [], ys = [], zs = [], search, searchPrice } = plotData || {};
-    traces.push({
+    const base = [{
       type: 'scatter3d',
       mode: 'markers',
       x: xs,
@@ -89,10 +117,9 @@ function makePlotConfig(mode, titles, plotData, camera) {
       z: zs,
       marker: { size: 3, opacity: 0.6 },
       name: 'Pressure points'
-    });
-
+    }];
     if (search && search.xs?.length) {
-      traces.push({
+      base.push({
         type: 'scatter3d',
         mode: 'markers',
         x: search.xs,
@@ -102,30 +129,28 @@ function makePlotConfig(mode, titles, plotData, camera) {
         name: `Search: ${searchPrice}`
       });
     }
-
-  } else {
-    const { x = [], y = [], z = [], search, searchPrice } = plotData || {};
-    traces.push({
-      type: 'surface',
-      x,
-      y,
-      z,
-      colorscale: 'Viridis',
-      name: 'Surface'
-    });
-
-    if (search && search.xs?.length) {
-      traces.push({
-        type: 'scatter3d',
-        mode: 'markers',
-        x: search.xs,
-        y: search.ys,
-        z: search.zs,
-        marker: { size: 5, opacity: 0.9, symbol: 'diamond' },
-        name: `Search: ${searchPrice}`
-      });
-    }
+    return base;
   }
 
-  return { traces, layout };
+  const { x = [], y = [], z = [], search, searchPrice } = plotData || {};
+  const base = [{
+    type: 'surface',
+    x,
+    y,
+    z,
+    colorscale: 'Viridis',
+    name: 'Surface'
+  }];
+  if (search && search.xs?.length) {
+    base.push({
+      type: 'scatter3d',
+      mode: 'markers',
+      x: search.xs,
+      y: search.ys,
+      z: search.zs,
+      marker: { size: 5, opacity: 0.9, symbol: 'diamond' },
+      name: `Search: ${searchPrice}`
+    });
+  }
+  return base;
 }
