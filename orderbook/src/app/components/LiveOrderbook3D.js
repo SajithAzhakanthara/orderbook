@@ -191,7 +191,20 @@ export default function LiveOrderbook3D() {
 
       {filtered.length === 0
         ? <div style={{ padding: 20 }}>No data (adjust filters, wait for live data, or switch mode).</div>
-        : <OrderbookPlot plotData={plotData} mode={dMode} titles={titles} />
+        : <OrderbookPlot
+            plotData={plotData}
+            mode={mode}
+            titles={{ title: 'Orderbook (Binance • BTCUSDT)', x: 'Price', y: 'Quantity', z: 'Time (s since start)' }}
+            showLegend={true}
+            legendOptions={{
+              x: 0.02,
+              y: 0.98,
+              bgcolor: 'rgba(255,255,255,0.7)',
+              bordercolor: '#ccc',
+              borderwidth: 1,
+              font: { size: 12 },
+            }}
+          />
       }
     </div>
   );

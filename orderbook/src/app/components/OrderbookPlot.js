@@ -5,16 +5,20 @@ import { useEffect, useRef } from 'react';
 import { useRafThrottle } from './hooks';
 const loadPlotly = () => import('plotly.js-dist-min');
 
-export default function OrderbookPlot({ plotData, mode, titles }) {
+export default function OrderbookPlot({
+  plotData,
+  mode,
+  titles,
+  height = 600,
+  hideModeBarOnMobile = true,
+}) {
   const divRef = useRef(null);
   const plotlyRef = useRef(null);
   const cameraRef = useRef(null);
   const isInteractingRef = useRef(false);
 
-  // Create once
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       const mod = await loadPlotly();
       const Plotly = mod.default ?? mod;
@@ -22,22 +26,15 @@ export default function OrderbookPlot({ plotData, mode, titles }) {
 
       plotlyRef.current = Plotly;
 
-      const { traces, layout } = makePlotConfig(mode, titles, plotData, cameraRef.current);
+      const { traces, layout } = makePlotConfig(mode, titles, plotData, cameraRef.current, height);
+      await Plotly.newPlot(divRef.current, traces, layout, {
+        responsive: true,
+        scrollZoom: true,
+        doubleClick: 'reset',
+        displaylogo: false,
+        modeBarButtonsToRemove: hideModeBarOnMobile ? ['toImage', 'toggleSpikelines'] : [],
+      });
 
-      await Plotly.newPlot(
-        divRef.current,
-        traces,
-        layout,
-        {
-          responsive: true,
-          scrollZoom: true,        // pinch to zoom on mobile
-          doubleClick: 'reset',    // double tap to reset
-          displaylogo: false,
-          modeBarButtonsToRemove: ['toImage', 'toggleSpikelines'], // optional
-        }
-      );
-
-      // Persist camera
       divRef.current.on('plotly_relayout', (e) => {
         if (e['scene.camera']) cameraRef.current = e['scene.camera'];
         isInteractingRef.current = false;
@@ -54,9 +51,8 @@ export default function OrderbookPlot({ plotData, mode, titles }) {
         Plotly.purge(divRef.current);
       };
     })();
-
     return () => { mounted = false; };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const throttledReact = useRafThrottle(() => {
     const Plotly = plotlyRef.current;
@@ -64,93 +60,151 @@ export default function OrderbookPlot({ plotData, mode, titles }) {
     if (!Plotly || !el) return;
     if (isInteractingRef.current) return;
 
-    const { traces, layout } = makePlotConfig(mode, titles, plotData, cameraRef.current);
-    Plotly.react(
-      el,
-      traces,
-      layout,
-      {
-        responsive: true,
-        scrollZoom: true,
-        displaylogo: false,
-      }
-    );
+    const { traces, layout } = makePlotConfig(mode, titles, plotData, cameraRef.current, height);
+    Plotly.react(el, traces, layout, {
+      responsive: true,
+      scrollZoom: true,
+      displaylogo: false,
+    });
   });
 
   useEffect(() => {
     throttledReact();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plotData, mode, titles]);
+  }, [plotData, mode, titles, height]);
 
-  return (
-    <div className="plot-wrapper" ref={divRef} />
-  );
+  return <div ref={divRef} style={{ width: '100%', height }} />;
 }
 
-function makePlotConfig(mode, titles, plotData, camera) {
-  const layout = {
-    title: titles?.title || '',
-    scene: {
-      xaxis: { title: titles?.x || 'Price' },
-      yaxis: { title: titles?.y || 'Quantity' },
-      zaxis: { title: titles?.z || 'Time (s since start)' },
-      dragmode: 'orbit',  // touch drag rotates
-      camera: camera || undefined,
-      aspectmode: 'cube', // keeps proportions reasonable on mobile
-    },
-    autosize: true,
-    margin: { l: 0, r: 0, b: 0, t: 40 }
+/* ----------------------------
+   Helpers
+----------------------------- */
+function makePlotConfig(mode, titles, plotData, camera, height) {
+  const sceneTitles = {
+    x: titles?.x || 'Price',
+    y: titles?.y || 'Quantity',
+    z: titles?.z || 'Time (s since start)',
   };
 
-  const traces = buildTraces(mode, plotData);
+  const layout = {
+    title: titles?.title || '3D Orderbook Visualization',
+    scene: {
+      xaxis: { title: sceneTitles.x },
+      yaxis: { title: sceneTitles.y },
+      zaxis: { title: sceneTitles.z },
+      dragmode: 'orbit',
+      camera: camera || undefined,
+      aspectmode: 'cube',
+    },
+    autosize: true,
+    height,
+    margin: { l: 0, r: 0, b: 0, t: 40 },
+    showlegend: true,
+    legend: {
+      x: 0.02,
+      y: 0.98,
+      bgcolor: 'rgba(255,255,255,0.6)',
+      bordercolor: '#ccc',
+      borderwidth: 1,
+      font: { size: 12 },
+    },
+  };
+
+  const traces = buildTraces(mode, plotData, sceneTitles);
   return { traces, layout };
 }
 
-function buildTraces(mode, plotData) {
+function buildTraces(mode, plotData, sceneTitles) {
+  const traces = [];
+
+  // Add axis descriptions as dummy legend entries
+  traces.push({
+    type: 'scatter3d',
+    x: [null],
+    y: [null],
+    z: [null],
+    mode: 'markers',
+    marker: { size: 0 },
+    name: `X-Axis: ${sceneTitles.x}`,
+    showlegend: true,
+    hoverinfo: 'skip',
+  });
+  traces.push({
+    type: 'scatter3d',
+    x: [null],
+    y: [null],
+    z: [null],
+    mode: 'markers',
+    marker: { size: 0 },
+    name: `Y-Axis: ${sceneTitles.y}`,
+    showlegend: true,
+    hoverinfo: 'skip',
+  });
+  traces.push({
+    type: 'scatter3d',
+    x: [null],
+    y: [null],
+    z: [null],
+    mode: 'markers',
+    marker: { size: 0 },
+    name: `Z-Axis: ${sceneTitles.z}`,
+    showlegend: true,
+    hoverinfo: 'skip',
+  });
+
+  // Color meaning
+  traces.push({
+    type: 'scatter3d',
+    x: [null],
+    y: [null],
+    z: [null],
+    mode: 'markers',
+    marker: { size: 6, color: 'green' },
+    name: 'Low Quantity (Green)',
+    showlegend: true,
+    hoverinfo: 'skip',
+  });
+  traces.push({
+    type: 'scatter3d',
+    x: [null],
+    y: [null],
+    z: [null],
+    mode: 'markers',
+    marker: { size: 6, color: 'red' },
+    name: 'High Quantity (Red)',
+    showlegend: true,
+    hoverinfo: 'skip',
+  });
+
+  // Add data traces
   if (mode === 'pressure') {
-    const { xs = [], ys = [], zs = [], search, searchPrice } = plotData || {};
-    const base = [{
+    const { xs = [], ys = [], zs = [] } = plotData || {};
+    traces.push({
       type: 'scatter3d',
       mode: 'markers',
       x: xs,
       y: ys,
       z: zs,
-      marker: { size: 3, opacity: 0.6 },
-      name: 'Pressure points'
-    }];
-    if (search && search.xs?.length) {
-      base.push({
-        type: 'scatter3d',
-        mode: 'markers',
-        x: search.xs,
-        y: search.ys,
-        z: search.zs,
-        marker: { size: 5, opacity: 0.9, symbol: 'diamond' },
-        name: `Search: ${searchPrice}`
-      });
-    }
-    return base;
-  }
-
-  const { x = [], y = [], z = [], search, searchPrice } = plotData || {};
-  const base = [{
-    type: 'surface',
-    x,
-    y,
-    z,
-    colorscale: 'Viridis',
-    name: 'Surface'
-  }];
-  if (search && search.xs?.length) {
-    base.push({
-      type: 'scatter3d',
-      mode: 'markers',
-      x: search.xs,
-      y: search.ys,
-      z: search.zs,
-      marker: { size: 5, opacity: 0.9, symbol: 'diamond' },
-      name: `Search: ${searchPrice}`
+      marker: { size: 3, opacity: 0.6, color: 'green' },
+      name: 'Pressure Points',
+      showlegend: true,
+    });
+  } else {
+    const { x = [], y = [], z = [] } = plotData || {};
+    traces.push({
+      type: 'surface',
+      x,
+      y,
+      z,
+      colorscale: [
+        [0, 'green'],
+        [1, 'red'],
+      ],
+      name: 'Orderbook Surface',
+      showscale: true,
+      showlegend: true,
     });
   }
-  return base;
+
+  return traces;
 }
